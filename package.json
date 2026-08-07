@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yarinnim/xpref.git"
+  },
   "scripts": {
     "build": "tsc --build -f ./tsconfig.json",
     "start:dev": "tsc --build -f ./tsconfig.json -w",
@@ -11,12 +15,15 @@
     "jsdoc": "tsc && jsdoc build/**/* -d jsdoc",
     "eslint": "eslint src --ext .ts"
   },
-  "author": "",
+  "author": {
+    "name": "Yarin NIM <yarin.nim@gmail.com>",
+    "web": "https://github.com/yarinnim"
+  },
+
   "license": "ISC",
-  "private": true,
   "sideEffects": false,
-  "bin": {
-    "core-api": "./bin/cli.js"
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "ajv": "^8.17.1",

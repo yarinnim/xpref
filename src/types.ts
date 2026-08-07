@@ -35,7 +35,7 @@ export type Route = Record<any, PathDetail>;
 
 type OnInit = (_app: Application) => void;
 
-export type API = {
+export type Xpref = {
   appName: string;
   appEnv: string;
   port?: number;

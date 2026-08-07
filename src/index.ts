@@ -2,14 +2,14 @@
 import express, { json, Application, urlencoded } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import type { API } from './types';
+import type { Xpref } from './types';
 import registerRouters from './router';
 import registerStatic from './static';
 import requestLog, { getReqId } from './request-log';
 import requestIdMiddleware from './request-id';
 import createValidator from './validator/method-validator';
 
-const getProps = (pProps: API): API => ({
+const getProps = (pProps: Xpref): Xpref => ({
   port: 3000,
   ...pProps,
 });
@@ -42,7 +42,7 @@ const startApp = (
 });
 */
 
-export default function api(pProps: API, tried: number = 0): any {
+export default function api(pProps: Xpref, tried: number = 0): any {
   const {
     appName,
     appEnv,
