@@ -1,83 +1,78 @@
-# API Package
+# xpref
 
-A powerful Express.js server setup package that provides a simple interface for creating and configuring Express applications with built-in security, logging, and routing features.
+Express.js application bootstrap for APIs — nested routing, request validation, OpenAPI docs, idempotency, proxying, and i18n.
 
 ## Features
 
-- Automatic port management with fallback
-- Built-in security with Helmet
-- CORS support
-- Request logging with log-client integration
-- Request ID tracking
-- Static file serving
-- Route registration
-- Custom middleware support
-- TypeScript support
+### Core server
+- Express 5 app bootstrap with a single `xpref()` call
+- Automatic port fallback when the configured port is in use
+- Manual start control via `manuallyStart`
+- `onInit` hook (runs before built-in middleware)
+- `interceptor` hook (runs after built-in middleware, before routes)
+- Startup banner with app name, environment, and port
+- TypeScript-first types and exports
+
+### Security & request pipeline
+- Helmet security headers
+- CORS enabled
+- Trust proxy enabled
+- JSON body parsing (8MB limit)
+- URL-encoded body parsing
+- Unique request ID (`Request-Id` / `request-id`) on every request and response
+- `getRequestId()` helper to read the current request ID
+
+### Routing
+- Declarative nested route trees (parent path + children)
+- Per-route middleware arrays
+- HTTP methods: `GET`, `POST`, `PUT`, `DELETE`, `PATCH`
+- Handler as a function, array of functions, or `{ action, params, description }`
+- Static file serving via `staticRoutes`
+
+### Request validation (AJV)
+- Shared schemas via the top-level `schemas` option
+- Per-method validation for `query`, `path` (`params`), and `body`
+- Type coercion, `$data`, and `ajv-errors` support
+- Human-readable field error messages (400 responses)
+
+### Request logging
+- Morgan console access logs (app name, env, request ID, method, status, URL, timing, user-agent)
+- Optional external logger integration (e.g. `@core/log-client`)
+- Structured log payload: request ID, IP, country, language, device ID, origin, referer, and base64 body for non-GET
+
+### OpenAPI / Swagger (`xpref/api-docs`)
+- OpenAPI 3.0 document generation from routes and schemas
+- Swagger UI middleware (`swagger-ui-express`)
+- Tags and external docs metadata
+- Bearer (JWT) and API key security schemes
+
+### Idempotency (`xpref/idempotency`)
+- POST-only idempotency via `idempotency-key` header (UUID v4)
+- Optional enforcement per route
+- Configurable TTL (default 5 minutes)
+- In-progress (`202`), cached success replay, and expired (`410`) responses
+- Optional `validateResponse` callback for custom success rules
+- JSON and `x-www-form-urlencoded` bodies
+
+### Request forwarder / proxy (`xpref/request-forwarder`)
+- `forwarder` — proxy HTTP/HTTPS upstream with body forwarding
+- `proxy` — stream pipe to upstream
+- Custom host, `proxyPrefix`, `withPrefix`, extra headers
+- `onUrlConstructed` URL rewrite hook
+- `passToNext` — collect upstream result and continue the middleware chain
+
+### Internationalization (`xpref/i18n`)
+- Locale JSON files loaded at init
+- `translate(key, replace?, lang?)` with `{placeholder}` substitution
+- Fallback language support (`fallbackLang`, `fallbackLangOnly`)
 
 ## Usage
 
-### Basic Server Setup
+### Basic server setup
 
 ```typescript
 import xpref from 'xpref';
 
-// Basic server setup
-xpref({
-  appName: 'my-app',
-  appEnv: 'development',
-  port: 3000,
-  routes: {
-    '/api/users': [
-      'users', // route name
-      [], // middleware array
-      {
-        get: (req, res) => {
-          res.json({ users: [] });
-        }
-      },
-      {} // children routes
-    ]
-  }
-}).then(({ port, app }) => {
-  console.log(`Server running on port ${port}`);
-});
-```
-
-### With Request Logging
-
-```typescript
-import xpref from 'xpref';
-import { createLogger } from '@core/log-client';
-
-// Create a logger instance
-const logger = createLogger({
-  appName: 'my-app',
-  appEnv: 'development'
-});
-
-xpref({
-  appName: 'my-app',
-  appEnv: 'development',
-  port: 3000,
-  logger, // Pass the logger instance
-  routes: {
-    '/api/logs': [
-      'logs',
-      [],
-      {
-        get: (req, res) => {
-          res.json({ logs: [] });
-        }
-      },
-      {}
-    ]
-  }
-});
-```
-
-### With Multiple Routes and Methods
-
-```typescript
 xpref({
   appName: 'my-app',
   appEnv: 'development',
@@ -85,43 +80,121 @@ xpref({
   routes: {
     '/api/users': [
       'users',
-      [], // middleware array
+      [],
       {
         get: (req, res) => {
           res.json({ users: [] });
         },
-        post: (req, res) => {
-          res.json({ message: 'User created' });
-        }
       },
-      {
-        '/create': [
-          'create-user',
-          [], // middleware array
-          {
-            post: (req, res) => {
-              res.json({ message: 'User created' });
-            }
-          },
-          {}
-        ]
-      }
+      {},
     ],
-    '/api/auth': [
-      'auth',
-      [], // middleware array
-      {
-        post: (req, res) => {
-          res.json({ token: 'jwt-token' });
-        }
-      },
-      {}
-    ]
-  }
+  },
+}).then(({ port, app }) => {
+  console.log(`Server running on port ${port}`);
 });
 ```
 
-### With Static Files
+### Nested routes and middleware
+
+```typescript
+xpref({
+  appName: 'my-app',
+  appEnv: 'development',
+  port: 3000,
+  interceptor: (app) => {
+    app.use((req, res, next) => {
+      console.log('Custom middleware');
+      next();
+    });
+  },
+  routes: {
+    '/api/users': [
+      'users',
+      [],
+      {
+        get: (req, res) => res.json({ users: [] }),
+        post: (req, res) => res.json({ message: 'User created' }),
+      },
+      {
+        '/:id': [
+          'user-by-id',
+          [authMiddleware],
+          {
+            get: (req, res) => res.json({ id: req.params.id }),
+            put: (req, res) => res.json({ message: 'Updated' }),
+            delete: (req, res) => res.json({ message: 'Deleted' }),
+          },
+        ],
+      },
+    ],
+  },
+});
+```
+
+### Request validation
+
+```typescript
+xpref({
+  appName: 'my-app',
+  appEnv: 'development',
+  port: 3000,
+  schemas: {
+    email: { type: 'string', format: 'email' },
+    name: { type: 'string', minLength: 1 },
+  },
+  routes: {
+    '/api/users': [
+      'users',
+      [],
+      {
+        post: {
+          description: 'Create a user',
+          params: {
+            body: {
+              type: 'object',
+              properties: ['email', 'name'],
+              required: ['email', 'name'],
+            },
+          },
+          action: (req, res) => {
+            res.json({ message: 'User created', ...req.body });
+          },
+        },
+      },
+    ],
+  },
+});
+```
+
+### With request logging
+
+```typescript
+import xpref from 'xpref';
+import { createLogger } from '@core/log-client';
+
+const logger = createLogger({
+  appName: 'my-app',
+  appEnv: 'development',
+});
+
+xpref({
+  appName: 'my-app',
+  appEnv: 'development',
+  port: 3000,
+  logger,
+  routes: {
+    '/api/logs': [
+      'logs',
+      [],
+      {
+        get: (req, res) => res.json({ logs: [] }),
+      },
+    ],
+  },
+});
+```
+
+### Static files
 
 ```typescript
 xpref({
@@ -130,168 +203,192 @@ xpref({
   port: 3000,
   staticRoutes: {
     '/public': './public',
-    '/uploads': './uploads'
+    '/uploads': './uploads',
   },
   routes: {
     '/api/files': [
       'files',
       [],
       {
-        get: (req, res) => {
-          res.json({ files: [] });
-        },
-        post: (req, res) => {
-          res.json({ message: 'File uploaded' });
-        },
-        put: (req, res) => {
-          res.json({ message: 'File updated' });
-        },
-        delete: (req, res) => {
-          res.json({ message: 'File deleted' });
-        }
+        get: (req, res) => res.json({ files: [] }),
       },
-      {}
-    ]
-  }
-});
-```
-
-### With Custom Middleware
-
-```typescript
-xpref({
-  appName: 'my-app',
-  appEnv: 'development',
-  port: 3000,
-  interceptor: (app) => {
-    // Add custom middleware
-    app.use((req, res, next) => {
-      console.log('Custom middleware');
-      next();
-    });
+    ],
   },
-  routes: {
-    '/api/protected': [
-      'protected',
-      [authMiddleware], // route-specific middleware
-      {
-        get: (req, res) => {
-          res.json({ data: 'Protected route' });
-        },
-        post: (req, res) => {
-          res.json({ data: 'Protected route created' });
-        },
-        put: (req, res) => {
-          res.json({ data: 'Protected route updated' });
-        },
-        delete: (req, res) => {
-          res.json({ data: 'Protected route deleted' });
-        }
-      },
-      {}
-    ]
-  }
 });
 ```
 
-### With Manual Start Control
+### Manual start
 
 ```typescript
 xpref({
   appName: 'my-app',
   appEnv: 'development',
   port: 3000,
-  manuallyStart: ({ app, port }) => {
-    // Custom server start logic
-    return new Promise((resolve) => {
+  manuallyStart: ({ app, port }) =>
+    new Promise((resolve) => {
       const server = app.listen(port, () => {
         resolve({ port, app, server });
       });
-    });
-  },
+    }),
   routes: {
     '/api/health': [
       'health',
       [],
       {
-        get: (req, res) => {
-          res.json({ status: 'ok' });
-        }
+        get: (req, res) => res.json({ status: 'ok' }),
       },
-      {}
-    ]
-  }
+    ],
+  },
 });
 ```
 
-## API Reference
-
-### `xpref(props: API): Promise<{ port: number, app: Application }>`
-
-Creates and configures an Express application.
-
-#### Parameters
-
-- `props`: Configuration object
-  - `appName`: Name of your application
-  - `appEnv`: Environment (development, production, etc.)
-  - `port`: Port number (default: 3000)
-  - `routes`: Object mapping routes to their configurations
-  - `staticRoutes`: Object mapping static file paths
-  - `manuallyStart`: Function for custom server start logic
-  - `interceptor`: Function to add custom middleware
-  - `logger`: LogClient instance from @core/log-client package
-
-### Route Configuration
+### Idempotency
 
 ```typescript
-type Handler = {
-  get?: (req: Request, res: Response, next: NextFunction) => void;
-  post?: (req: Request, res: Response, next: NextFunction) => void;
-  put?: (req: Request, res: Response, next: NextFunction) => void;
-  delete?: (req: Request, res: Response, next: NextFunction) => void;
-  patch?: (req: Request, res: Response, next: NextFunction) => void;
-};
+import type { Route } from 'xpref';
+import idempotency from 'xpref/idempotency';
 
-type RouteConfig = [
+const routes = {
+  '/wallets': [
+    'wallets',
+    [],
+    {},
+    {
+      '/transfer': [
+        'transfer',
+        [idempotency({ enforced: true, ttl: 300 })],
+        {
+          post: walletTransferAction,
+        },
+      ],
+    },
+  ],
+} as Route;
+```
+
+Clients send `idempotency-key: <uuid-v4>` on POST. Retry on `5xx`, `422`, `429`, and similar failures with exponential backoff.
+
+### Request forwarder / proxy
+
+```typescript
+import { forwarder, proxy } from 'xpref/request-forwarder';
+
+// As middleware: forward and respond from upstream
+app.use('/upstream', forwarder({
+  host: 'https://api.example.com',
+  proxyPrefix: '/v1',
+  headers: { 'x-api-key': 'secret' },
+}));
+
+// Collect upstream result and continue the chain
+app.use('/gateway', forwarder({
+  host: 'https://api.example.com',
+  passToNext: true,
+}), (req, res) => {
+  // Upstream status/headers/body available via applyProxyResultToRequest
+  res.json({ ok: true });
+});
+
+// Stream pipe proxy
+app.use('/proxy', proxy({
+  host: 'https://api.example.com',
+  withPrefix: true,
+  onUrlConstructed: (url) => url.replace(/\/+$/, ''),
+}));
+```
+
+### i18n
+
+```typescript
+import { i18n } from 'xpref';
+
+const t = i18n({
+  locale: {
+    en: './locales/en.json',
+    km: './locales/km.json',
+  },
+  fallbackLang: 'en',
+});
+
+t('welcome.message', { name: 'Ada' }, 'en');
+```
+
+### OpenAPI / Swagger UI
+
+```typescript
+import setupApiDocs from 'xpref/api-docs';
+
+const [serve, setup] = setupApiDocs(
+  {
+    info: {
+      title: 'My API',
+      version: '1.0.0',
+      description: 'API documentation',
+    },
+    bearerAuth: true,
+    apiKeys: ['x-api-key'],
+    tags: {
+      users: { description: 'User endpoints' },
+    },
+  },
+  { routes, schemas },
+);
+
+app.use('/docs', serve, setup);
+```
+
+## API reference
+
+### `xpref(props: Xpref): Promise<{ port: number; app: Application }>`
+
+| Option | Type | Description |
+| --- | --- | --- |
+| `appName` | `string` | Application name |
+| `appEnv` | `string` | Environment (e.g. `development`, `production`) |
+| `port` | `number` | Listen port (default `3000`; auto-increments if in use) |
+| `routes` | `Route` | Nested route configuration |
+| `schemas` | `Record<string, any>` | Shared AJV schemas for method validation |
+| `staticRoutes` | `Record<string, string>` | URL path → filesystem path |
+| `logger` | `any` | Optional logger factory used by request logging |
+| `onInit` | `(app) => void` | Hook before built-in middleware |
+| `interceptor` | `(app) => void` | Hook after built-in middleware |
+| `manuallyStart` | `({ app, port }) => Promise` | Skip auto-listen; start the server yourself |
+
+### Route configuration
+
+```typescript
+type MethodOptions =
+  | CallableFunction
+  | CallableFunction[]
+  | {
+      action: CallableFunction | CallableFunction[];
+      params?: { query?: any; path?: any; body?: any };
+      description?: string | [string, string];
+    };
+
+type PathDetail = [
   string, // route name
-  Array<(req: Request, res: Response, next: NextFunction) => void>, // middleware array
-  Handler, // handler object with HTTP methods
-  Record<string, RouteConfig> // children routes
+  any[], // middleware
+  MethodHandler, // get/post/put/delete/patch
+  Record<string, PathDetail>?, // children
 ];
 
-type Routes = {
-  [path: string]: RouteConfig;
-};
+type Route = Record<string, PathDetail>;
 ```
 
-### Static Route Configuration
+### Exports
 
-```typescript
-type StaticRoutes = {
-  [path: string]: string; // Maps URL path to file system path
-};
-```
+| Export | From | Description |
+| --- | --- | --- |
+| default `xpref` | `xpref` | Create and start the app |
+| `getRequestId` | `xpref` | Read request ID from a request |
+| `i18n` | `xpref` | Initialize translations |
+| Express types / `urlencoded` | `xpref` | Re-exported for convenience |
+| `idempotency` | `xpref/idempotency` | Idempotency middleware |
+| `setupApiDocs` | `xpref/api-docs` | OpenAPI + Swagger UI |
+| `forwarder`, `proxy` | `xpref/request-forwarder` | Upstream proxy helpers |
 
-## Built-in Features
-
-### Security
-- Helmet.js for security headers
-- CORS enabled
-- Trust proxy enabled
-- JSON body parsing (8MB limit)
-- URL-encoded body parsing
-
-### Request Tracking
-- Unique request ID generation
-- Request logging with log-client integration
-- Request ID middleware
-
-### Error Handling
-- Automatic port fallback if port is in use
-- Error handling for server startup
-
-## Example Project Structure
+## Example project structure
 
 ```
 src/
@@ -300,54 +397,14 @@ src/
   │   └── auth.ts
   ├── middleware/
   │   └── auth.ts
+  ├── locales/
+  │   └── en.json
   ├── static/
   │   └── public/
   └── index.ts
 ```
 
 ```typescript
-// src/routes/users.ts
-export default {
-  '/api/users': [
-    'users',
-    [],
-    {
-      get: (req, res) => {
-        res.json({ users: [] });
-      },
-      post: (req, res) => {
-        res.json({ message: 'User created' });
-      }
-    },
-    {
-      '/create': [
-        'create-user',
-        [],
-        {
-          post: (req, res) => {
-            res.json({ message: 'User created' });
-          }
-        },
-        {}
-      ]
-    }
-  ]
-};
-
-// src/routes/auth.ts
-export default {
-  '/api/auth': [
-    'auth',
-    [],
-    {
-      post: (req, res) => {
-        res.json({ token: 'jwt-token' });
-      }
-    },
-    {}
-  ]
-};
-
 // src/index.ts
 import xpref from 'xpref';
 import { createLogger } from '@core/log-client';
@@ -355,10 +412,9 @@ import userRoutes from './routes/users';
 import authRoutes from './routes/auth';
 import authMiddleware from './middleware/auth';
 
-// Create logger instance
 const logger = createLogger({
   appName: 'my-api',
-  appEnv: process.env.NODE_ENV || 'development'
+  appEnv: process.env.NODE_ENV || 'development',
 });
 
 xpref({
@@ -366,17 +422,16 @@ xpref({
   appEnv: process.env.NODE_ENV || 'development',
   port: 3000,
   staticRoutes: {
-    '/public': './static/public'
+    '/public': './static/public',
   },
   interceptor: (app) => {
-    // Add authentication middleware
     app.use('/api/protected', authMiddleware);
   },
-  logger, // Pass the logger instance
+  logger,
   routes: {
     ...userRoutes,
-    ...authRoutes
-  }
+    ...authRoutes,
+  },
 }).then(({ port }) => {
   console.log(`Server running on port ${port}`);
 });
@@ -384,5 +439,4 @@ xpref({
 
 ## License
 
-MIT
-
+ISC
