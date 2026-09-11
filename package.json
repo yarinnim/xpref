@@ -1,6 +1,6 @@
 {
   "name": "xpref",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "",
   "main": "index.js",
   "repository": {
@@ -19,7 +19,6 @@
     "name": "Yarin NIM <yarin.nim@gmail.com>",
     "web": "https://github.com/yarinnim"
   },
-
   "license": "ISC",
   "sideEffects": false,
   "publishConfig": {
