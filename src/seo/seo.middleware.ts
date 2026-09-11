@@ -25,7 +25,7 @@ const getSeoProps = (req: Request, dataHandler: CallableFunction): Promise<SeoPr
   const data = readResPayload(req);
   if (!(data || false)) throw new Error('Invalid Response.');
 
-  const result = dataHandler(data);
+  const result = dataHandler(data, req);
   if (result instanceof Promise) return result.then((value: any) => value);
   return Promise.resolve(result);
 };
@@ -36,7 +36,7 @@ type SeoProxyProps = {
 };
 
 /* eslint-disable-next-line no-unused-vars */
-type CallbackData = (data: any) => SeoProps | Promise<SeoProps>;
+type CallbackData = (data: any, req?: Request) => SeoProps | Promise<SeoProps>;
 
 export default function prepareTemplate(props: SeoProxyProps, onData: CallbackData) {
   return (req: Request, res: Response, next: NextFunction) => {
