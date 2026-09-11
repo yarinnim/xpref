@@ -18,7 +18,7 @@ const normalizeProxyHeaders = (headers: IncomingMessage['headers']): NormalizedP
 );
 
 type ProxyBody = string | Buffer | Record<string, unknown>;
-const parseProxyBody = (body: Buffer, headers: IncomingMessage['headers']): ProxyBody => {
+export const parseProxyBody = (body: Buffer, headers: IncomingMessage['headers']): ProxyBody => {
   const contentType = String(headers['content-type'] || '');
   const isJson = contentType.includes('application/json');
   if (!isJson) return body;
