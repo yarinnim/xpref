@@ -2,31 +2,14 @@ import path from 'path';
 import type { Request, Response, NextFunction } from '../types';
 import type { SeoProps } from './type';
 
-/**
- * Reads track/SEO payload produced by /seo/music/play
- * (forwarder → music service, passToNext), not the client request body.
- */
-const readSeoPayload = (req: Request): SeoProps => {
+const readResPayload = (req: Request): any => {
   const payload = req.body;
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     throw new Error('Invalid Application Request');
   }
-  return payload as SeoProps;
+  return payload;
 };
 
-/**
- * Validates crawler requests and renders EJS from the upstream
- * track JSON (set by a passToNext forwarder on the same route).
- *
- * Flow:
- *   client → forwarder(music, passToNext) → seoMiddleware → client
- *   - crawler: render EJS HTML
- *   - otherwise: next() so the route action can return track JSON
- *
- * @example
- * // Crawler: GET /seo/music/play?id=PUBLIC_ID → HTML
- * // Client:  GET /seo/music/play?id=PUBLIC_ID → JSON track detail
- */
 const isValidCrawler = (req: Request) => {
   const strBool = String(req.headers['is-certified-crawler'] || '');
   return strBool.trim() === 'true';
@@ -38,11 +21,24 @@ const getTemplatePath = (props: any): string => {
   return path.join(__dirname, 'seo.template.ejs');
 };
 
-type SeoProxyProps = {
-  templatePath?: string;
+const getSeoProps = (req: Request, dataHandler: CallableFunction): Promise<SeoProps> => {
+  const data = readResPayload(req);
+  if (!(data || false)) throw new Error('Invalid Response.');
+
+  const result = dataHandler(data);
+  if (result instanceof Promise) return result.then((value: any) => value);
+  return Promise.resolve(result);
 };
 
-export default function prepareTemplate(props: SeoProxyProps = {}) {
+type SeoProxyProps = {
+  siteName: string,
+  templatePath?: string,
+};
+
+/* eslint-disable-next-line no-unused-vars */
+type CallbackData = (data: any) => SeoProps | Promise<SeoProps>;
+
+export default function prepareTemplate(props: SeoProxyProps, onData: CallbackData) {
   return (req: Request, res: Response, next: NextFunction) => {
     if (req.method === 'OPTIONS') return next();
     if (req.method !== 'GET') return next();
@@ -55,25 +51,25 @@ export default function prepareTemplate(props: SeoProxyProps = {}) {
       return res.status(statusCode).json({ message });
     }
 
-    let payload: SeoProps;
-    try {
-      payload = readSeoPayload(req);
-    } catch {
-      return res.status(400).json({ message: 'Invalid request.' });
-    }
+    return getSeoProps(req, onData)
+      .then((payload: SeoProps) => {
+        const templatePath = getTemplatePath(props);
+        res.removeHeader('content-type');
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
 
-    const templatePath = getTemplatePath(props);
-    res.removeHeader('content-type');
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-
-    return res.status(200).render(templatePath, {
-      title: payload.title,
-      description: payload.description ?? '',
-      canonicalUrl: payload.canonicalUrl,
-      mediaType: payload.mediaType ?? 'website',
-      siteName: payload.siteName,
-      imageUrl: payload.imageUrl,
-      redirectUrlJson: JSON.stringify(payload.canonicalUrl),
-    });
+        return res.status(200).render(templatePath, {
+          title: payload.title,
+          description: payload.description,
+          canonicalUrl: payload.canonicalUrl,
+          mediaType: payload.mediaType,
+          imageUrl: payload.imageUrl,
+          siteName: props.siteName,
+          redirectUrlJson: JSON.stringify(payload.canonicalUrl),
+        });
+      })
+      .catch((error: any) => {
+        const { message } = error;
+        return res.status(400).json({ message });
+      });
   };
 }
