@@ -33,7 +33,40 @@ export type PathDetail = [string, PathMiddleware, MethodHandler]
 
 export type Route = Record<any, PathDetail>;
 
-type OnInit = (_app: Application) => void;
+/* eslint-disable-next-line no-unused-vars */
+type OnInit = (app: Application) => void;
+
+type OpenGrapType = 'website' | 'article' | 'product' | 'profile'
+  | 'music.song' | 'music.album' | 'music.playlist' | 'music.radio_station'
+  | 'video.movie' | 'video.episode' | 'video.tv_show' | 'video.other';
+
+export type MovieSubTag = 'video.actor:role' | 'video:director' | 'video:writer'
+  | 'video:duration' | 'video:release_date' | 'video:tag';
+
+export type MusicSubTag = 'music:duration' | 'music:album' | 'music:album:disc'
+  | 'music:album:track' | 'music:musician';
+
+export type SeoData = {
+  title: string,
+  description: string | null,
+  imageUrl: string,
+
+  canonicalUrl?: string,
+  mediaType?: OpenGrapType,
+};
+
+export type SeoProps = {
+  templatePath?: string,
+  onData: (data: any, req?: Request) => SeoData | Promise<SeoData>;
+
+  site: {
+    name: string,
+    title: string,
+    description: string,
+    imageUrl: string,
+    keywords: string,
+  },
+};
 
 export type Xpref = {
   appName: string;
@@ -49,6 +82,7 @@ export type Xpref = {
   schemas?: Record<string, any>,
 
   manuallyStart?: any,
+  seo?: SeoProps,
 };
 
 export type RequestForwarder = {
