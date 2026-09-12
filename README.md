@@ -4,71 +4,57 @@ Express.js application bootstrap for APIs — nested routing, request validation
 
 ## Features
 
-### Core server
-- Express 5 app bootstrap with a single `xpref()` call
-- Automatic port fallback when the configured port is in use
-- Manual start control via `manuallyStart`
-- `onInit` hook (runs before built-in middleware)
-- `interceptor` hook (runs after built-in middleware, before routes)
-- Startup banner with app name, environment, and port
-- TypeScript-first types and exports
+| Area | Capabilities |
+| --- | --- |
+| **Server** | Express 5 bootstrap, port fallback, `onInit` / `interceptor` hooks, startup banner |
+| **Security** | Helmet, CORS, trust proxy, JSON / URL-encoded body parsing (8MB) |
+| **Routing** | Nested route trees, per-route middleware, static file serving |
+| **Validation** | AJV schemas for query, path, and body with readable 400 errors |
+| **Observability** | Request IDs, Morgan access logs, optional external logger |
+| **Modules** | OpenAPI / Swagger, idempotency, request forwarder, i18n |
 
-### Security & request pipeline
-- Helmet security headers
-- CORS enabled
-- Trust proxy enabled
-- JSON body parsing (8MB limit)
-- URL-encoded body parsing
-- Unique request ID (`Request-Id` / `request-id`) on every request and response
-- `getRequestId()` helper to read the current request ID
+## Installation
 
-### Routing
-- Declarative nested route trees (parent path + children)
-- Per-route middleware arrays
-- HTTP methods: `GET`, `POST`, `PUT`, `DELETE`, `PATCH`
-- Handler as a function, array of functions, or `{ action, params, description }`
-- Static file serving via `staticRoutes`
+```bash
+npm install xpref
+```
 
-### Request validation (AJV)
-- Shared schemas via the top-level `schemas` option
-- Per-method validation for `query`, `path` (`params`), and `body`
-- Type coercion, `$data`, and `ajv-errors` support
-- Human-readable field error messages (400 responses)
+## Request flow
 
-### Request logging
-- Morgan console access logs (app name, env, request ID, method, status, URL, timing, user-agent)
-- Optional external logger integration (e.g. `@core/log-client`)
-- Structured log payload: request ID, IP, country, language, device ID, origin, referer, and base64 body for non-GET
+Every request passes through the same pipeline:
 
-### OpenAPI / Swagger (`xpref/api-docs`)
-- OpenAPI 3.0 document generation from routes and schemas
-- Swagger UI middleware (`swagger-ui-express`)
-- Tags and external docs metadata
-- Bearer (JWT) and API key security schemes
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                         xpref()                             │
+├─────────────────────────────────────────────────────────────┤
+│  1. onInit(app)              optional early hook            │
+│  2. Built-in middleware      cors → helmet → json → urlenc  │
+│  3. interceptor(app)         optional custom middleware     │
+│  4. Request ID               Request-Id on request/response │
+│  5. Request logging          Morgan (+ optional logger)     │
+│  6. Static routes            staticRoutes mounts            │
+│  7. Route tree               middleware → validate → action │
+└─────────────────────────────────────────────────────────────┘
+```
 
-### Idempotency (`xpref/idempotency`)
-- POST-only idempotency via `idempotency-key` header (UUID v4)
-- Optional enforcement per route
-- Configurable TTL (default 5 minutes)
-- In-progress (`202`), cached success replay, and expired (`410`) responses
-- Optional `validateResponse` callback for custom success rules
-- JSON and `x-www-form-urlencoded` bodies
+```mermaid
+flowchart LR
+  A[Incoming request] --> B[CORS / Helmet / Body parsers]
+  B --> C[interceptor]
+  C --> D[Request ID]
+  D --> E[Request log]
+  E --> F{Matched route?}
+  F -->|yes| G[Route middleware]
+  G --> H{Has schema?}
+  H -->|yes| I[AJV validation]
+  I -->|ok| J[Handler]
+  I -->|fail| K[400 errors]
+  H -->|no| J
+  F -->|static| L[Static files]
+  J --> M[Response]
+```
 
-### Request forwarder / proxy (`xpref/request-forwarder`)
-- `forwarder` — proxy HTTP/HTTPS upstream with body forwarding
-- `proxy` — stream pipe to upstream
-- Custom host, `proxyPrefix`, `withPrefix`, extra headers
-- `onUrlConstructed` URL rewrite hook
-- `passToNext` — collect upstream result and continue the middleware chain
-
-### Internationalization (`xpref/i18n`)
-- Locale JSON files loaded at init
-- `translate(key, replace?, lang?)` with `{placeholder}` substitution
-- Fallback language support (`fallbackLang`, `fallbackLangOnly`)
-
-## Usage
-
-### Basic server setup
+## Quick start
 
 ```typescript
 import xpref from 'xpref';
@@ -78,20 +64,36 @@ xpref({
   appEnv: 'development',
   port: 3000,
   routes: {
-    '/api/users': [
-      'users',
+    '/api/health': [
+      'health',
       [],
       {
-        get: (req, res) => {
-          res.json({ users: [] });
-        },
+        get: (_req, res) => res.json({ status: 'ok' }),
       },
-      {},
     ],
   },
-}).then(({ port, app }) => {
-  console.log(`Server running on port ${port}`);
+}).then(({ port }) => {
+  console.log(`Listening on ${port}`);
 });
+```
+
+Returns `{ port, app }`. If the port is in use, xpref retries the next available port.
+
+---
+
+## How to use
+
+### Route shape
+
+Each path is a tuple: `[name, middleware[], handlers, children?]`.
+
+```typescript
+type PathDetail = [
+  string,                          // route name (for docs / logging)
+  any[],                           // middleware
+  MethodHandler,                   // get | post | put | delete | patch
+  Record<string, PathDetail>?,     // nested children
+];
 ```
 
 ### Nested routes and middleware
@@ -102,8 +104,8 @@ xpref({
   appEnv: 'development',
   port: 3000,
   interceptor: (app) => {
-    app.use((req, res, next) => {
-      console.log('Custom middleware');
+    app.use((req, _res, next) => {
+      console.log(req.method, req.url);
       next();
     });
   },
@@ -113,7 +115,7 @@ xpref({
       [],
       {
         get: (req, res) => res.json({ users: [] }),
-        post: (req, res) => res.json({ message: 'User created' }),
+        post: (req, res) => res.status(201).json(req.body),
       },
       {
         '/:id': [
@@ -121,8 +123,8 @@ xpref({
           [authMiddleware],
           {
             get: (req, res) => res.json({ id: req.params.id }),
-            put: (req, res) => res.json({ message: 'Updated' }),
-            delete: (req, res) => res.json({ message: 'Deleted' }),
+            put: (req, res) => res.json({ updated: true }),
+            delete: (req, res) => res.status(204).end(),
           },
         ],
       },
@@ -132,6 +134,8 @@ xpref({
 ```
 
 ### Request validation
+
+Define shared schemas once, then reference them on method handlers:
 
 ```typescript
 xpref({
@@ -157,7 +161,7 @@ xpref({
             },
           },
           action: (req, res) => {
-            res.json({ message: 'User created', ...req.body });
+            res.status(201).json(req.body);
           },
         },
       },
@@ -166,7 +170,45 @@ xpref({
 });
 ```
 
-### With request logging
+Handlers can be a function, an array of functions, or `{ action, params, description }`.
+
+### Static files
+
+```typescript
+xpref({
+  appName: 'my-app',
+  appEnv: 'development',
+  port: 3000,
+  staticRoutes: {
+    '/public': './public',
+    '/uploads': './uploads',
+  },
+  routes: { /* ... */ },
+});
+```
+
+### Manual start
+
+Skip auto-listen when you need custom server control (HTTPS, clustering, tests):
+
+```typescript
+xpref({
+  appName: 'my-app',
+  appEnv: 'development',
+  port: 3000,
+  manuallyStart: ({ app, port }) =>
+    new Promise((resolve) => {
+      const server = app.listen(port, () => {
+        resolve({ port, app, server });
+      });
+    }),
+  routes: { /* ... */ },
+});
+```
+
+### Request logging
+
+Pass any logger compatible with your stack (for example `@core/log-client`):
 
 ```typescript
 import xpref from 'xpref';
@@ -182,67 +224,26 @@ xpref({
   appEnv: 'development',
   port: 3000,
   logger,
-  routes: {
-    '/api/logs': [
-      'logs',
-      [],
-      {
-        get: (req, res) => res.json({ logs: [] }),
-      },
-    ],
-  },
+  routes: { /* ... */ },
 });
 ```
 
-### Static files
+Console logs always include app name, env, request ID, method, status, URL, timing, and user-agent.
 
-```typescript
-xpref({
-  appName: 'my-app',
-  appEnv: 'development',
-  port: 3000,
-  staticRoutes: {
-    '/public': './public',
-    '/uploads': './uploads',
-  },
-  routes: {
-    '/api/files': [
-      'files',
-      [],
-      {
-        get: (req, res) => res.json({ files: [] }),
-      },
-    ],
-  },
-});
-```
+---
 
-### Manual start
+## Modules
 
-```typescript
-xpref({
-  appName: 'my-app',
-  appEnv: 'development',
-  port: 3000,
-  manuallyStart: ({ app, port }) =>
-    new Promise((resolve) => {
-      const server = app.listen(port, () => {
-        resolve({ port, app, server });
-      });
-    }),
-  routes: {
-    '/api/health': [
-      'health',
-      [],
-      {
-        get: (req, res) => res.json({ status: 'ok' }),
-      },
-    ],
-  },
-});
-```
+### Idempotency — `xpref/idempotency`
 
-### Idempotency
+Ensures a POST runs once for a given `idempotency-key` (UUID v4). Supports JSON and `x-www-form-urlencoded` bodies.
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `ttl` | `300` | Cache lifetime in seconds |
+| `enforced` | `false` | Require the header on the route |
+| `headerKey` | `idempotency-key` | Header name |
+| `validateResponse` | status 200/201 | Custom success check |
 
 ```typescript
 import type { Route } from 'xpref';
@@ -257,63 +258,18 @@ const routes = {
       '/transfer': [
         'transfer',
         [idempotency({ enforced: true, ttl: 300 })],
-        {
-          post: walletTransferAction,
-        },
+        { post: walletTransferAction },
       ],
     },
   ],
 } as Route;
 ```
 
-Clients send `idempotency-key: <uuid-v4>` on POST. Retry on `5xx`, `422`, `429`, and similar failures with exponential backoff.
+**Client guidance:** retry on `5xx`, `422`, `429` (and similar) with exponential backoff. In-progress requests return `202`; expired keys return `410`.
 
-### Request forwarder / proxy
+### OpenAPI / Swagger — `xpref/api-docs`
 
-```typescript
-import { forwarder, proxy } from 'xpref/request-forwarder';
-
-// As middleware: forward and respond from upstream
-app.use('/upstream', forwarder({
-  host: 'https://api.example.com',
-  proxyPrefix: '/v1',
-  headers: { 'x-api-key': 'secret' },
-}));
-
-// Collect upstream result and continue the chain
-app.use('/gateway', forwarder({
-  host: 'https://api.example.com',
-  passToNext: true,
-}), (req, res) => {
-  // Upstream status/headers/body available via applyProxyResultToRequest
-  res.json({ ok: true });
-});
-
-// Stream pipe proxy
-app.use('/proxy', proxy({
-  host: 'https://api.example.com',
-  withPrefix: true,
-  onUrlConstructed: (url) => url.replace(/\/+$/, ''),
-}));
-```
-
-### i18n
-
-```typescript
-import { i18n } from 'xpref';
-
-const t = i18n({
-  locale: {
-    en: './locales/en.json',
-    km: './locales/km.json',
-  },
-  fallbackLang: 'en',
-});
-
-t('welcome.message', { name: 'Ada' }, 'en');
-```
-
-### OpenAPI / Swagger UI
+Generates an OpenAPI 3.0 document from routes and schemas, then mounts Swagger UI.
 
 ```typescript
 import setupApiDocs from 'xpref/api-docs';
@@ -337,71 +293,101 @@ const [serve, setup] = setupApiDocs(
 app.use('/docs', serve, setup);
 ```
 
+### Request forwarder — `xpref/request-forwarder`
+
+Proxy or stream requests to an upstream service.
+
+```typescript
+import { forwarder, proxy } from 'xpref/request-forwarder';
+
+// Forward and respond from upstream
+app.use('/upstream', forwarder({
+  host: 'https://api.example.com',
+  proxyPrefix: '/v1',
+  headers: { 'x-api-key': 'secret' },
+}));
+
+// Collect upstream result, then continue the chain
+app.use(
+  '/gateway',
+  forwarder({ host: 'https://api.example.com', passToNext: true }),
+  (req, res) => {
+    res.json({ ok: true });
+  },
+);
+
+// Stream pipe
+app.use('/proxy', proxy({
+  host: 'https://api.example.com',
+  withPrefix: true,
+  onUrlConstructed: (url) => url.replace(/\/+$/, ''),
+}));
+```
+
+### i18n — `xpref`
+
+```typescript
+import { i18n } from 'xpref';
+
+const t = i18n({
+  locale: {
+    en: './locales/en.json',
+    km: './locales/km.json',
+  },
+  fallbackLang: 'en',
+});
+
+t('welcome.message', { name: 'Ada' }, 'en');
+// Locale strings use {placeholder} substitution
+```
+
+---
+
 ## API reference
 
-### `xpref(props: Xpref): Promise<{ port: number; app: Application }>`
+### `xpref(props): Promise<{ port: number; app: Application }>`
 
 | Option | Type | Description |
 | --- | --- | --- |
 | `appName` | `string` | Application name |
-| `appEnv` | `string` | Environment (e.g. `development`, `production`) |
-| `port` | `number` | Listen port (default `3000`; auto-increments if in use) |
+| `appEnv` | `string` | Environment (`development`, `production`, …) |
+| `port` | `number` | Listen port (default `3000`; auto-increments if busy) |
 | `routes` | `Route` | Nested route configuration |
-| `schemas` | `Record<string, any>` | Shared AJV schemas for method validation |
+| `schemas` | `Record<string, any>` | Shared AJV schemas |
 | `staticRoutes` | `Record<string, string>` | URL path → filesystem path |
-| `logger` | `any` | Optional logger factory used by request logging |
-| `onInit` | `(app) => void` | Hook before built-in middleware |
-| `interceptor` | `(app) => void` | Hook after built-in middleware |
-| `manuallyStart` | `({ app, port }) => Promise` | Skip auto-listen; start the server yourself |
-
-### Route configuration
-
-```typescript
-type MethodOptions =
-  | CallableFunction
-  | CallableFunction[]
-  | {
-      action: CallableFunction | CallableFunction[];
-      params?: { query?: any; path?: any; body?: any };
-      description?: string | [string, string];
-    };
-
-type PathDetail = [
-  string, // route name
-  any[], // middleware
-  MethodHandler, // get/post/put/delete/patch
-  Record<string, PathDetail>?, // children
-];
-
-type Route = Record<string, PathDetail>;
-```
+| `logger` | `any` | Optional logger used by request logging |
+| `onInit` | `(app) => void` | Runs before built-in middleware |
+| `interceptor` | `(app) => void` | Runs after built-in middleware, before routes |
+| `manuallyStart` | `({ app, port }) => Promise` | Custom listen instead of auto-start |
 
 ### Exports
 
-| Export | From | Description |
+| Export | Package | Description |
 | --- | --- | --- |
-| default `xpref` | `xpref` | Create and start the app |
-| `getRequestId` | `xpref` | Read request ID from a request |
+| `xpref` (default) | `xpref` | Create and start the app |
+| `getRequestId` | `xpref` | Read the current request ID |
 | `i18n` | `xpref` | Initialize translations |
 | Express types / `urlencoded` | `xpref` | Re-exported for convenience |
 | `idempotency` | `xpref/idempotency` | Idempotency middleware |
 | `setupApiDocs` | `xpref/api-docs` | OpenAPI + Swagger UI |
 | `forwarder`, `proxy` | `xpref/request-forwarder` | Upstream proxy helpers |
 
-## Example project structure
+---
 
-```
+## Example layout
+
+```text
 src/
-  ├── routes/
-  │   ├── users.ts
-  │   └── auth.ts
-  ├── middleware/
-  │   └── auth.ts
-  ├── locales/
-  │   └── en.json
-  ├── static/
-  │   └── public/
-  └── index.ts
+├── routes/
+│   ├── users.ts
+│   └── auth.ts
+├── middleware/
+│   └── auth.ts
+├── locales/
+│   └── en.json
+├── static/
+│   └── public/
+└── index.ts
 ```
 
 ```typescript
@@ -412,22 +398,20 @@ import userRoutes from './routes/users';
 import authRoutes from './routes/auth';
 import authMiddleware from './middleware/auth';
 
-const logger = createLogger({
-  appName: 'my-api',
-  appEnv: process.env.NODE_ENV || 'development',
-});
-
 xpref({
   appName: 'my-api',
   appEnv: process.env.NODE_ENV || 'development',
-  port: 3000,
+  port: Number(process.env.PORT) || 3000,
+  logger: createLogger({
+    appName: 'my-api',
+    appEnv: process.env.NODE_ENV || 'development',
+  }),
   staticRoutes: {
     '/public': './static/public',
   },
   interceptor: (app) => {
     app.use('/api/protected', authMiddleware);
   },
-  logger,
   routes: {
     ...userRoutes,
     ...authRoutes,
