@@ -1,5 +1,6 @@
 import path from 'path';
-import type { SeoProps, SeoData, Request, Response, NextFunction } from '../types';
+import type { Request, Response, NextFunction } from '../types';
+import type { SeoProps, SeoData } from './types';
 
 const isValidCrawler = (req: Request) => {
   const strBool = String(req.headers['is-certified-crawler'] || '');
