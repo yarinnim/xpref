@@ -1,14 +1,38 @@
 import path from 'path';
-import type { SeoProps, Request, Response, NextFunction } from '../types';
-import onResFinish from './response';
+import type { SeoProps, SeoData, Request, Response, NextFunction } from '../types';
 
 const isValidCrawler = (req: Request) => {
   const strBool = String(req.headers['is-certified-crawler'] || '');
   return strBool.trim() === 'true';
 };
 
+const getTemplatePath = (props: any): string => {
+  const templatePath = props.templatePath || '';
+  if (templatePath !== '') return templatePath;
+  return path.join(__dirname, 'seo.template.ejs');
+};
+
+const touchData = (data: any): SeoData => ({
+  siteName: data.siteName,
+  title: data.title,
+  description: data.description,
+  imageUrl: data.imageUrl,
+  mediaType: data.mediaType,
+
+  canonicalUrl: 'data.canonicalUrl',
+  redirectUrlJson: JSON.stringify('payload.canonicalUrl'),
+});
+
+/*
+const getSeoData = (req: Request, data: any, dataHandler: any): Promise<SeoData> => {
+  const result = dataHandler(data, req);
+  if (result instanceof Promise) return result.then((value: any) => value);
+  return Promise.resolve(result);
+};
+ */
+
 export default function seoMiddleware(props: SeoProps) {
-  return (req: Request, res: any, next: NextFunction) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     if (req.method === 'OPTIONS') return next();
     if (req.method !== 'GET') return next();
     if (!isValidCrawler(req)) return next();
@@ -20,19 +44,19 @@ export default function seoMiddleware(props: SeoProps) {
       return res.status(statusCode).json({ message });
     }
 
-    // res.on('finish', onResFinish(req, res, props));
-    //
     const originalJson = res.json.bind(res);
 
-    res.json = function (data: any) {
-      // Map '/seo/music' -> 'seo/music' template path
-      const templatePath = path.join(__dirname, 'seo/seo.template.ejs');
-      console.log({ templatePath });
-
-      res.render(templatePath, { seoData: data }, (err: any, html: any) => {
+    (res as any).json = async function(resData: any) {
+      const data = await props.onData(resData);
+      const templateData = touchData({ 
+        siteName: props.site.name,
+        ...data,
+      });
+      const templatePath = getTemplatePath(props);
+      res.render(templatePath, templateData, (err: any, html: any) => {
         if (err) {
-          console.error('EJS Error:', err.message);
-          return originalJson({ error: 'Template missing', data });
+          const { message } = err;
+          return originalJson({ error: 'Template missing', data, message });
         }
         res.send(html);
       });

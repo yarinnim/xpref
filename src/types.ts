@@ -36,7 +36,7 @@ export type Route = Record<any, PathDetail>;
 /* eslint-disable-next-line no-unused-vars */
 type OnInit = (app: Application) => void;
 
-type OpenGrapType = 'website' | 'article' | 'product' | 'profile'
+type OpenGraphType = 'website' | 'article' | 'product' | 'profile'
   | 'music.song' | 'music.album' | 'music.playlist' | 'music.radio_station'
   | 'video.movie' | 'video.episode' | 'video.tv_show' | 'video.other';
 
@@ -51,8 +51,10 @@ export type SeoData = {
   description: string | null,
   imageUrl: string,
 
+  siteName?: string,
   canonicalUrl?: string,
-  mediaType?: OpenGrapType,
+  mediaType?: OpenGraphType,
+  redirectUrlJson?: string,
 };
 
 export type SeoProps = {
