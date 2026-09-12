@@ -21,6 +21,7 @@ const touchData = (data: any): SeoData => ({
 
   canonicalUrl: 'data.canonicalUrl',
   redirectUrlJson: JSON.stringify('payload.canonicalUrl'),
+  template: 'test',
 });
 
 /*
@@ -47,11 +48,12 @@ export default function seoMiddleware(props: SeoProps) {
     const originalJson = res.json.bind(res);
 
     (res as any).json = async function(resData: any) {
-      const data = await props.onData(resData);
+      const data = await props.onData(resData, req);
       const templateData = touchData({ 
         siteName: props.site.name,
         ...data,
       });
+
       const templatePath = getTemplatePath(props);
       res.render(templatePath, templateData, (err: any, html: any) => {
         if (err) {

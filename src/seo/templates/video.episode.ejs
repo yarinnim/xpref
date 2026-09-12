@@ -1,0 +1,24 @@
+<% (Array.isArray(locals.actors) ? actors : (locals.actor ? [actor] : [])).forEach(function (actor) { %>
+<meta property="video:actor" content="<%= typeof actor === 'object' ? actor.url : actor %>">
+<% if (typeof actor === 'object' && actor.role) { %>
+<meta property="video:actor:role" content="<%= actor.role %>">
+<% } %>
+<% }) %>
+<% (Array.isArray(locals.directors) ? directors : (locals.director ? [director] : [])).forEach(function (director) { %>
+<meta property="video:director" content="<%= typeof director === 'object' ? director.url : director %>">
+<% }) %>
+<% (Array.isArray(locals.writers) ? writers : (locals.writer ? [writer] : [])).forEach(function (writer) { %>
+<meta property="video:writer" content="<%= typeof writer === 'object' ? writer.url : writer %>">
+<% }) %>
+<% if (locals.duration) { %>
+<meta property="video:duration" content="<%= duration %>">
+<% } %>
+<% if (locals.releaseDate) { %>
+<meta property="video:release_date" content="<%= releaseDate %>">
+<% } %>
+<% (Array.isArray(locals.tags) ? tags : (locals.tag ? [tag] : [])).forEach(function (tag) { %>
+<meta property="video:tag" content="<%= tag %>">
+<% }) %>
+<% if (locals.series) { %>
+<meta property="video:series" content="<%= typeof series === 'object' ? series.url : series %>">
+<% } %>

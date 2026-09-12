@@ -6,6 +6,7 @@
     <title><%= title %></title>
     <meta name="description" content="<%= description %>">
     <link rel="canonical" href="<%= canonicalUrl %>">
+
     <meta property="og:type" content="<%= mediaType %>">
     <meta property="og:site_name" content="<%= siteName %>">
     <meta property="og:title" content="<%= title %>">
@@ -13,11 +14,14 @@
     <meta property="og:url" content="<%= canonicalUrl %>">
     <meta property="og:image" content="<%= imageUrl %>">
     <meta property="og:image:alt" content="<%= title %>">
+
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="<%= title %>">
     <meta name="twitter:description" content="<%= description %>">
     <meta name="twitter:image" content="<%= imageUrl %>">
+
     <meta http-equiv="refresh" content="0;url=<%= canonicalUrl %>">
+    <%- include(`templates/${template}.ejs`) %>
   </head>
   <body>
     <p>Redirecting to <a href="<%= canonicalUrl %>"><%= title %></a>...</p>

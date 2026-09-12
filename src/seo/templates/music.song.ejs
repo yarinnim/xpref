@@ -1,0 +1,19 @@
+<% if (locals.duration) { %>
+<meta property="music:duration" content="<%= duration %>">
+<% } %>
+<% (Array.isArray(locals.albums) ? albums : (locals.album ? [album] : [])).forEach(function (album) { %>
+<meta property="music:album" content="<%= typeof album === 'object' ? album.url : album %>">
+<% if (typeof album === 'object' && album.disc) { %>
+<meta property="music:album:disc" content="<%= album.disc %>">
+<% } else if (locals.albumDisc) { %>
+<meta property="music:album:disc" content="<%= albumDisc %>">
+<% } %>
+<% if (typeof album === 'object' && album.track) { %>
+<meta property="music:album:track" content="<%= album.track %>">
+<% } else if (locals.albumTrack) { %>
+<meta property="music:album:track" content="<%= albumTrack %>">
+<% } %>
+<% }) %>
+<% (Array.isArray(locals.musicians) ? musicians : (locals.musician ? [musician] : [])).forEach(function (musician) { %>
+<meta property="music:musician" content="<%= typeof musician === 'object' ? musician.url : musician %>">
+<% }) %>

@@ -1,0 +1,3 @@
+<% (Array.isArray(locals.creators) ? creators : (locals.creator ? [creator] : [])).forEach(function (creator) { %>
+<meta property="music:creator" content="<%= typeof creator === 'object' ? creator.url : creator %>">
+<% }) %>

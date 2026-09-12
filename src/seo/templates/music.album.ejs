@@ -1,0 +1,15 @@
+<% (Array.isArray(locals.songs) ? songs : (locals.song ? [song] : [])).forEach(function (song) { %>
+<meta property="music:song" content="<%= typeof song === 'object' ? song.url : song %>">
+<% if (typeof song === 'object' && song.disc) { %>
+<meta property="music:song:disc" content="<%= song.disc %>">
+<% } %>
+<% if (typeof song === 'object' && song.track) { %>
+<meta property="music:song:track" content="<%= song.track %>">
+<% } %>
+<% }) %>
+<% (Array.isArray(locals.musicians) ? musicians : (locals.musician ? [musician] : [])).forEach(function (musician) { %>
+<meta property="music:musician" content="<%= typeof musician === 'object' ? musician.url : musician %>">
+<% }) %>
+<% if (locals.releaseDate) { %>
+<meta property="music:release_date" content="<%= releaseDate %>">
+<% } %>
