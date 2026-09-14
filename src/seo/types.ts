@@ -1,5 +1,3 @@
-import type { Request } from 'express';
-
 export type OpenGraphType = 'website' | 'article' | 'product' | 'profile'
   | 'music.song' | 'music.album' | 'music.playlist' | 'music.radio_station'
   | 'video.movie' | 'video.episode' | 'video.tv_show' | 'video.other';
@@ -31,7 +29,7 @@ export type MusicSubTag = 'music:duration' | 'music:album' | 'music:album:disc'
   | 'music:album:track' | 'music:musician' | 'music:song' | 'music:song:disc'
   | 'music:song:track' | 'music:release_date' | 'music:creator';
 
-export type SeoData = {
+type SeoTemplateData = {
   title: string,
   description: string | null,
   imageUrl: string,
@@ -43,10 +41,10 @@ export type SeoData = {
   template?: string,
 };
 
+export type SeoData = SeoTemplateData | Promise<SeoTemplateData>;
+
 export type SeoProps = {
   templatePath?: string,
-  /* eslint-disable-next-line no-unused-vars */
-  onData: (data: any, req: Request) => SeoData | Promise<SeoData>;
 
   site: {
     name: string,

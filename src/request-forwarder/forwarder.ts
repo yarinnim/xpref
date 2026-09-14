@@ -4,15 +4,9 @@
  * server, so noly hostname or server ip address is defined
  * with it's prototol (http or https).
  */
-import type { IncomingMessage } from 'http';
 import queryString from 'node:querystring';
-import type {
-  RequestForwarder,
-    Response,
-    Request,
-    NextFunction,
-    ProxyResult,
-} from '../types';
+import type { Response, Request, NextFunction } from '../types';
+import type { ProxyResult, RequestForwarder } from './types';
 import { getUrl, getRequestHandler, onError } from './common';
 import { collectProxyResult, applyProxyResultToRequest } from './pass-to-next';
 

@@ -1,3 +1,5 @@
 /tsconfig.tsbuildinfo
 /build
 /src/.index.ts.swp
+/src/seo/.format-data.ts.swp
+/src/seo/.index.ts.swp

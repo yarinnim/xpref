@@ -16,3 +16,5 @@ export default function requestIdMiddleware() {
     next();
   };
 }
+
+export * from './types';

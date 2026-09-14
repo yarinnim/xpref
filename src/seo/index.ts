@@ -49,17 +49,16 @@ export default function seoMiddleware(props: SeoProps) {
     const originalJson = res.json.bind(res);
 
     (res as any).json = async function(resData: any) {
-      const data = await props.onData(resData, req);
       const templateData = touchData({ 
         siteName: props.site.name,
-        ...data,
+        ...resData,
       });
 
       const templatePath = getTemplatePath(props);
       res.render(templatePath, templateData, (err: any, html: any) => {
         if (err) {
           const { message } = err;
-          return originalJson({ error: 'Template missing', data, message });
+          return originalJson({ error: 'Template missing', resData, message });
         }
         res.send(html);
       });
@@ -67,3 +66,6 @@ export default function seoMiddleware(props: SeoProps) {
     next();
   };
 }
+
+export * from './types';
+export { default as formatData } from './format-data';

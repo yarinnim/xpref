@@ -4,7 +4,8 @@
  * server, so noly hostname or server ip address is defined
  * with it's prototol (http or https).
  */
-import type { Request, Response, RequestForwarder } from '../types';
+import type { Request, Response } from '../types';
+import type { RequestForwarder } from './types';
 import { getUrl, onError, getRequestHandler } from './common';
 
 const getHeaders = (req: any, headers: any = {}) => {

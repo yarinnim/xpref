@@ -1,4 +1,5 @@
-import type { ProxyResult, Request, Response } from '../types';
+import type { Request, Response } from '../types';
+import type { ProxyResult } from './types'; 
 import type { IncomingMessage } from 'http';
 
 type NormalizedProxyHeaders = Record<string, string | string[]>;
