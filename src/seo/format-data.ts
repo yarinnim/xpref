@@ -14,6 +14,6 @@ const getSeoData = (data: any, dataHandler: any, req: Request) => {
 export default function formatData(callback: OnResonseCallback): RequestHandler {
   return (req: Request, res: Response) => {
     const { body } = req;
-    return getSeoData(body, callback, req).then(res.send);
+    return getSeoData(body, callback, req).then(res.json);
   };
 }

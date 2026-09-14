@@ -11,7 +11,7 @@ Express.js application bootstrap for APIs — nested routing, request validation
 | **Routing** | Nested route trees, per-route middleware, static file serving |
 | **Validation** | AJV schemas for query, path, and body with readable 400 errors |
 | **Observability** | Request IDs, Morgan access logs, optional external logger |
-| **Modules** | OpenAPI / Swagger, idempotency, request forwarder, i18n |
+| **Modules** | OpenAPI / Swagger, idempotency, request forwarder, SEO / Open Graph, i18n |
 
 ## Installation
 
@@ -324,6 +324,52 @@ app.use('/proxy', proxy({
 }));
 ```
 
+### SEO / Open Graph — `xpref/seo`
+
+For certified crawlers (`is-certified-crawler: true`), GET handlers that call `res.json()` are rendered as HTML using `seo.template.ejs`. The main template injects a **sub-template based on `mediaType`**:
+
+```text
+seo.template.ejs
+  └── include templates/${mediaType}.ejs
+```
+
+| `mediaType` | Sub-template |
+| --- | --- |
+| `website` (default) | `templates/website.ejs` |
+| `article` | `templates/article.ejs` |
+| `product` | `templates/product.ejs` |
+| `profile` | `templates/profile.ejs` |
+| `music.song` / `album` / `playlist` / `radio_station` | `templates/music.*.ejs` |
+| `video.movie` / `episode` / `tv_show` / `other` | `templates/video.*.ejs` |
+
+```typescript
+import seoMiddleware from 'xpref/seo';
+
+app.use(seoMiddleware({
+  site: {
+    name: 'My Site',
+    title: 'My Site',
+    description: 'Default description',
+    imageUrl: 'https://cdn.example.com/og.png',
+    keywords: 'api, media',
+  },
+}));
+
+// Handler response — mediaType selects the OG sub-template
+res.json({
+  title: 'Inception',
+  description: 'A thief who steals corporate secrets…',
+  imageUrl: 'https://cdn.example.com/inception.jpg',
+  canonicalUrl: 'https://example.com/movies/inception',
+  mediaType: 'video.movie',
+  duration: 8880,
+  releaseDate: '2010-07-16',
+  directors: ['https://example.com/people/nolan'],
+});
+```
+
+Unknown or missing `mediaType` falls back to `website`.
+
 ### i18n — `xpref`
 
 ```typescript
@@ -371,6 +417,7 @@ t('welcome.message', { name: 'Ada' }, 'en');
 | `idempotency` | `xpref/idempotency` | Idempotency middleware |
 | `setupApiDocs` | `xpref/api-docs` | OpenAPI + Swagger UI |
 | `forwarder`, `proxy` | `xpref/request-forwarder` | Upstream proxy helpers |
+| `seoMiddleware`, `formatData` | `xpref/seo` | Crawler HTML + Open Graph by `mediaType` |
 
 ---
 

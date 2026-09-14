@@ -1,6 +1,21 @@
 import path from 'path';
 import type { Request, Response, NextFunction } from '../types';
-import type { SeoProps, SeoData } from './types';
+import type { SeoProps, SeoData, OpenGraphType } from './types';
+
+const OPEN_GRAPH_TYPES = new Set<OpenGraphType>([
+  'website',
+  'article',
+  'product',
+  'profile',
+  'music.song',
+  'music.album',
+  'music.playlist',
+  'music.radio_station',
+  'video.movie',
+  'video.episode',
+  'video.tv_show',
+  'video.other',
+]);
 
 const isValidCrawler = (req: Request) => {
   const strBool = String(req.headers['is-certified-crawler'] || '');
@@ -13,25 +28,30 @@ const getTemplatePath = (props: any): string => {
   return path.join(__dirname, 'seo.template.ejs');
 };
 
-const touchData = (data: any): SeoData => ({
-  siteName: data.siteName,
-  title: data.title,
-  description: data.description,
-  imageUrl: data.imageUrl,
-  mediaType: data.mediaType,
-
-  canonicalUrl: 'data.canonicalUrl',
-  redirectUrlJson: JSON.stringify('payload.canonicalUrl'),
-  template: 'test',
-});
-
-/*
-const getSeoData = (req: Request, data: any, dataHandler: any): Promise<SeoData> => {
-  const result = dataHandler(data, req);
-  if (result instanceof Promise) return result.then((value: any) => value);
-  return Promise.resolve(result);
+/** Sub-template filename matches Open Graph mediaType (e.g. video.movie → templates/video.movie.ejs). */
+const getSubTemplate = (mediaType?: string): OpenGraphType => {
+  if (mediaType && OPEN_GRAPH_TYPES.has(mediaType as OpenGraphType)) {
+    return mediaType as OpenGraphType;
+  }
+  return 'website';
 };
- */
+
+const touchData = (data: any): SeoData => {
+  const mediaType = getSubTemplate(data.mediaType);
+  const canonicalUrl = data.canonicalUrl || '';
+
+  return {
+    ...data,
+    siteName: data.siteName,
+    title: data.title,
+    description: data.description,
+    imageUrl: data.imageUrl,
+    mediaType,
+    canonicalUrl,
+    redirectUrlJson: JSON.stringify(canonicalUrl),
+    template: mediaType,
+  };
+};
 
 export default function seoMiddleware(props: SeoProps) {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -49,7 +69,7 @@ export default function seoMiddleware(props: SeoProps) {
     const originalJson = res.json.bind(res);
 
     (res as any).json = async function(resData: any) {
-      const templateData = touchData({ 
+      const templateData = touchData({
         siteName: props.site.name,
         ...resData,
       });
